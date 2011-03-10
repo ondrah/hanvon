@@ -20,7 +20,6 @@ MODULE_LICENSE(DRIVER_LICENSE);
 #define B1	BTN_TOOL_FINGER
 #define B2	BTN_TOOL_PENCIL
 #define B3	BTN_TOOL_AIRBRUSH
-#define TOTAL_WHEEL_ABS	0x40
 #define WHEEL_THRESHOLD	10
 
 struct hanvon {
@@ -34,7 +33,7 @@ struct hanvon {
 	unsigned b1:1;
 	unsigned b2:1;
 	unsigned b3:1;
-	int wheel_pos, old_wheel_pos;
+	int old_wheel_pos;
 	int pressure;
 	char phys[32];
 };
@@ -73,17 +72,9 @@ static void hanvon_irq(struct urb *urb)
 				input_report_key(dev, B3, hanvon->b3);
 			} else {
 				if(data[2] <= 0x3f) {	// slider area active
-					int diff = hanvon->old_wheel_pos - data[2];
-					if(abs(diff) < WHEEL_THRESHOLD) {
-						hanvon->wheel_pos += diff;
-
-						if(hanvon->wheel_pos < -TOTAL_WHEEL_ABS)
-							hanvon->wheel_pos += TOTAL_WHEEL_ABS;
-						else if(hanvon->wheel_pos > TOTAL_WHEEL_ABS)
-							hanvon->wheel_pos -= TOTAL_WHEEL_ABS;
-
-						input_report_key(dev, ABS_WHEEL, hanvon->wheel_pos);
-					}
+					int diff = data[2] - hanvon->old_wheel_pos;
+					if(abs(diff) < WHEEL_THRESHOLD)
+						input_report_key(dev, REL_WHEEL, diff);
 
 					hanvon->old_wheel_pos = data[2];
 				}
@@ -134,7 +125,7 @@ static int hanvon_open(struct input_dev *dev)
 {
 	struct hanvon *hanvon = input_get_drvdata(dev);
 
-	hanvon->old_wheel_pos = -TOTAL_WHEEL_ABS-1;
+	hanvon->old_wheel_pos = -WHEEL_THRESHOLD-1;
 	hanvon->irq->dev = hanvon->usbdev;
 	if (usb_submit_urb(hanvon->irq, GFP_KERNEL))
 		return -EIO;
@@ -197,7 +188,6 @@ static int hanvon_probe(struct usb_interface *intf, const struct usb_device_id *
 	input_set_abs_params(input_dev, ABS_X, 0, 0x27de, 4, 0);
 	input_set_abs_params(input_dev, ABS_Y, 0, 0x1cfe, 4, 0);
 	input_set_abs_params(input_dev, ABS_PRESSURE, 0, 0xffffffff, 4, 0);
-	input_set_abs_params(input_dev, ABS_WHEEL, 0, TOTAL_WHEEL_ABS, 4, 0);
 
 	endpoint = &intf->cur_altsetting->endpoint[0].desc;
 
