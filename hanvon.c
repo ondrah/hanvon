@@ -5,7 +5,7 @@
 #include <linux/usb/input.h>
 #include <asm/unaligned.h>
 
-#define DRIVER_VERSION "v0.2"
+#define DRIVER_VERSION "v0.3"
 #define DRIVER_AUTHOR "Ondra Havel <ondra.havel@gmail.com>"
 #define DRIVER_DESC "USB Hanvon AM0806 tablet driver"
 #define DRIVER_LICENSE "GPL"
@@ -16,11 +16,11 @@ MODULE_LICENSE(DRIVER_LICENSE);
 
 #define USB_VENDOR_ID_HANVON	0x0b57
 
-#define B0	BTN_TOOL_RUBBER
-#define B1	BTN_TOOL_FINGER
-#define B2	BTN_TOOL_PENCIL
-#define B3	BTN_TOOL_AIRBRUSH
-#define WHEEL_THRESHOLD	10
+#define B0	BTN_0
+#define B1	BTN_1
+#define B2	BTN_2
+#define B3	BTN_3
+#define WHEEL_THRESHOLD	4
 
 struct hanvon {
 	unsigned char *data;
@@ -28,13 +28,7 @@ struct hanvon {
 	struct input_dev *dev;
 	struct usb_device *usbdev;
 	struct urb *irq;
-	int x, y;
-	unsigned b0:1;
-	unsigned b1:1;
-	unsigned b2:1;
-	unsigned b3:1;
 	int old_wheel_pos;
-	int pressure;
 	char phys[32];
 };
 
@@ -63,13 +57,9 @@ static void hanvon_irq(struct urb *urb)
 	switch(data[0]) {
 		case 0x01:	// button press
 			if((data[2] & 0xf0) == 0xa0) {
-				hanvon->b1 = data[2] & 0x02;
-				hanvon->b2 = data[2] & 0x04;
-				hanvon->b3 = data[2] & 0x08;
-
-				input_report_key(dev, B1, hanvon->b1);
-				input_report_key(dev, B2, hanvon->b2);
-				input_report_key(dev, B3, hanvon->b3);
+				input_report_key(dev, B1, data[2] & 0x02);
+				input_report_key(dev, B2, data[2] & 0x04);
+				input_report_key(dev, B3, data[2] & 0x08);
 			} else {
 				if(data[2] <= 0x3f) {	// slider area active
 					int diff = data[2] - hanvon->old_wheel_pos;
@@ -84,22 +74,16 @@ static void hanvon_irq(struct urb *urb)
 			
 		case 0x02:	// position change
 			if((data[1] & 0xf0) != 0) {
-				hanvon->x = get_unaligned_be16(&data[2]);
-				hanvon->y = get_unaligned_be16(&data[4]);
-				hanvon->pressure = get_unaligned_be16(&data[6]);
-			} else {
-				hanvon->pressure = 0;
+				input_report_abs(dev, ABS_X, get_unaligned_be16(&data[2]));
+				input_report_abs(dev, ABS_Y, get_unaligned_be16(&data[4]));
+				input_report_abs(dev, ABS_TILT_X, data[7] & 0x3f);
+				input_report_abs(dev, ABS_TILT_Y, data[8]);
+				input_report_abs(dev, ABS_PRESSURE, get_unaligned_be16(&data[6])>>6);
 			}
-
-			hanvon->b0 = data[1] & 0x20;
 
 			input_report_key(dev, BTN_LEFT, data[1] & 0x1);
 			input_report_key(dev, BTN_RIGHT, data[1] & 0x2);		// stylus button pressed (right click)
-
-			input_report_abs(dev, ABS_X, hanvon->x);
-			input_report_abs(dev, ABS_Y, hanvon->y);
-			input_report_abs(dev, ABS_PRESSURE, hanvon->pressure);
-			input_report_key(dev, B0, hanvon->b0);
+			input_report_key(dev, B0, data[1] & 0x20);
 
 			break;
 	}
@@ -176,12 +160,19 @@ static int hanvon_probe(struct usb_interface *intf, const struct usb_device_id *
 	input_dev->close = hanvon_close;
 
 	input_dev->evbit[0] |= BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS) | BIT_MASK(EV_REL);
-	input_dev->keybit[BIT_WORD(BTN_DIGI)] |= BIT_MASK(B0) | BIT_MASK(B1) | BIT_MASK(B2) | BIT_MASK(B3) | BIT_MASK(BTN_TOOL_PEN) | BIT_MASK(BTN_TOUCH);
+	//input_dev->keybit[BIT_WORD(BTN_DIGI)] |= BIT_MASK(B0) | BIT_MASK(B1) | BIT_MASK(B2) | BIT_MASK(B3) | 
+	input_dev->keybit[BIT_WORD(BTN_DIGI)] |= BIT_MASK(BTN_TOOL_PEN) | BIT_MASK(BTN_TOUCH);
 	input_dev->keybit[BIT_WORD(BTN_LEFT)] |= BIT_MASK(BTN_LEFT) | BIT_MASK(BTN_RIGHT);
+	__set_bit(B0, input_dev->keybit);
+	__set_bit(B1, input_dev->keybit);
+	__set_bit(B2, input_dev->keybit);
+	__set_bit(B3, input_dev->keybit);
 
 	input_set_abs_params(input_dev, ABS_X, 0, 0x27de, 4, 0);
 	input_set_abs_params(input_dev, ABS_Y, 0, 0x1cfe, 4, 0);
-	input_set_abs_params(input_dev, ABS_PRESSURE, 0, 0xffff, 0, 0);
+	input_set_abs_params(input_dev, ABS_TILT_X, 0, 0x3f, 0, 0);
+	input_set_abs_params(input_dev, ABS_TILT_Y, 0, 0x7f, 0, 0);
+	input_set_abs_params(input_dev, ABS_PRESSURE, 0, 0x400, 0, 0);
 	input_set_capability(input_dev, EV_REL, REL_WHEEL);
 
 	endpoint = &intf->cur_altsetting->endpoint[0].desc;
