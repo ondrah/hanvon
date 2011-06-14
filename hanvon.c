@@ -5,7 +5,7 @@
 #include <linux/usb/input.h>
 #include <asm/unaligned.h>
 
-#define DRIVER_VERSION "v0.0.1"
+#define DRIVER_VERSION "v0.2"
 #define DRIVER_AUTHOR "Ondra Havel <ondra.havel@gmail.com>"
 #define DRIVER_DESC "USB Hanvon AM0806 tablet driver"
 #define DRIVER_LICENSE "GPL"
@@ -74,7 +74,7 @@ static void hanvon_irq(struct urb *urb)
 				if(data[2] <= 0x3f) {	// slider area active
 					int diff = data[2] - hanvon->old_wheel_pos;
 					if(abs(diff) < WHEEL_THRESHOLD)
-						input_report_key(dev, REL_WHEEL, diff);
+						input_report_rel(dev, REL_WHEEL, diff);
 
 					hanvon->old_wheel_pos = data[2];
 				}
@@ -92,8 +92,6 @@ static void hanvon_irq(struct urb *urb)
 			}
 
 			hanvon->b0 = data[1] & 0x20;
-
-			//input_report_key(dev, BTN_TOUCH, data[1] & 0x1);
 
 			input_report_key(dev, BTN_LEFT, data[1] & 0x1);
 			input_report_key(dev, BTN_RIGHT, data[1] & 0x2);		// stylus button pressed (right click)
@@ -153,7 +151,6 @@ static int hanvon_probe(struct usb_interface *intf, const struct usb_device_id *
 	if (!hanvon || !input_dev)
 		goto fail1;
 
-	//hanvon->data = (unsigned char *)usb_buffer_alloc(dev, 8, GFP_KERNEL, &hanvon->data_dma);
 	hanvon->data = (unsigned char *)usb_alloc_coherent(dev, 10, GFP_KERNEL, &hanvon->data_dma);
 	if (!hanvon->data)
 		goto fail1;
@@ -178,16 +175,14 @@ static int hanvon_probe(struct usb_interface *intf, const struct usb_device_id *
 	input_dev->open = hanvon_open;
 	input_dev->close = hanvon_close;
 
-	input_dev->evbit[0] |= BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS) |
-		BIT_MASK(EV_MSC);
-	input_dev->keybit[BIT_WORD(BTN_LEFT)] |= BIT_MASK(BTN_LEFT) |
-		BIT_MASK(BTN_RIGHT) | BIT_MASK(BTN_MIDDLE);
-	input_dev->keybit[BIT_WORD(BTN_DIGI)] |= BIT_MASK(BTN_TOOL_PEN) |
-		BIT_MASK(BTN_TOUCH);
-	input_dev->mscbit[0] |= BIT_MASK(MSC_SERIAL);
+	input_dev->evbit[0] |= BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS) | BIT_MASK(EV_REL);
+	input_dev->keybit[BIT_WORD(BTN_DIGI)] |= BIT_MASK(B0) | BIT_MASK(B1) | BIT_MASK(B2) | BIT_MASK(B3) | BIT_MASK(BTN_TOOL_PEN) | BIT_MASK(BTN_TOUCH);
+	input_dev->keybit[BIT_WORD(BTN_LEFT)] |= BIT_MASK(BTN_LEFT) | BIT_MASK(BTN_RIGHT);
+
 	input_set_abs_params(input_dev, ABS_X, 0, 0x27de, 4, 0);
 	input_set_abs_params(input_dev, ABS_Y, 0, 0x1cfe, 4, 0);
-	input_set_abs_params(input_dev, ABS_PRESSURE, 0, 0xffffffff, 4, 0);
+	input_set_abs_params(input_dev, ABS_PRESSURE, 0, 0xffff, 0, 0);
+	input_set_capability(input_dev, EV_REL, REL_WHEEL);
 
 	endpoint = &intf->cur_altsetting->endpoint[0].desc;
 
@@ -203,11 +198,9 @@ static int hanvon_probe(struct usb_interface *intf, const struct usb_device_id *
 		goto fail3;
 
 	usb_set_intfdata(intf, hanvon);
-
 	return 0;
 
  fail3:	usb_free_urb(hanvon->irq);
- //fail2:	usb_buffer_free(dev, 10, hanvon->data, hanvon->data_dma);
  fail2:	usb_free_coherent(dev, 10, hanvon->data, hanvon->data_dma);
  fail1:	input_free_device(input_dev);
 	kfree(hanvon);
@@ -223,7 +216,6 @@ static void hanvon_disconnect(struct usb_interface *intf)
 		usb_kill_urb(hanvon->irq);
 		input_unregister_device(hanvon->dev);
 		usb_free_urb(hanvon->irq);
-		//usb_buffer_free(interface_to_usbdev(intf), 10, hanvon->data, hanvon->data_dma);
 		usb_free_coherent(interface_to_usbdev(intf), 10, hanvon->data, hanvon->data_dma);
 		kfree(hanvon);
 	}
