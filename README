@@ -5,9 +5,9 @@ Revision history
 ================
 
 0.0.1 - initial release
-0.2 - corrected pressure detection, working slider button
-0.3 - remaining buttons also working, added x and y tilting
-0.3b patch for AM1209 support from Markus Zucker applied
+  0.2 - corrected pressure detection, working slider button
+  0.3 - remaining buttons also working, added x and y tilting
+ 0.3b - patch for AM1209 support from Markus Zucker applied
 
 
 Installation
