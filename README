@@ -1,0 +1,30 @@
+Hanvon Artmaster 0806,1209 Tablet Driver
+
+
+Revision history
+================
+
+0.0.1 - initial release
+0.2 - corrected pressure detection, working slider button
+0.3 - remaining buttons also working, added x and y tilting
+0.3b patch for AM1209 support from Markus Zucker applied
+
+
+Installation
+============
+
+Type 'make' to compile the module. New file hanvon.ko will be produced in
+current directory. Load the module with root permissions
+
+insmod ./hanvon.ko
+
+If everything goes right the tablet should start working immediately.
+
+
+Diagnostics
+===========
+
+After insmod, check with dmesg, if the module was loaded properly.  
+"v0.3b:USB Hanvon AM0806,AM1209 tablet driver" should appear in the listing.
+
+lsmod should also contain hanvon in its listing: lsmod | grep hanvon

@@ -5,9 +5,9 @@
 #include <linux/usb/input.h>
 #include <asm/unaligned.h>
 
-#define DRIVER_VERSION "v0.3"
+#define DRIVER_VERSION "v0.3b"
 #define DRIVER_AUTHOR "Ondra Havel <ondra.havel@gmail.com>"
-#define DRIVER_DESC "USB Hanvon AM0806 tablet driver"
+#define DRIVER_DESC "USB Hanvon AM0806,AM1209 tablet driver"
 #define DRIVER_LICENSE "GPL"
 
 MODULE_AUTHOR(DRIVER_AUTHOR);
@@ -97,7 +97,8 @@ exit:
 }
 
 static struct usb_device_id hanvon_ids[] = {
-	{ USB_DEVICE(USB_VENDOR_ID_HANVON, 0x8502), .driver_info = 0 },
+	{ USB_DEVICE(USB_VENDOR_ID_HANVON, 0x8501), .driver_info = 0 }, // ArtMaster 1209
+	{ USB_DEVICE(USB_VENDOR_ID_HANVON, 0x8502), .driver_info = 0 }, // ArtMaster 0806
 	{ }
 };
 
