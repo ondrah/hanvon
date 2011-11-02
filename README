@@ -1,5 +1,5 @@
-Hanvon Artmaster 0806,1209 Tablet Driver
-========================================
+Hanvon Artmaster I Tablet Driver
+================================
 
 Driver for Linux kernels which supports complete functionality of the tablet:
 pen coordinates, touch/float/click detection, pressure, x and y tilt, pen button,
@@ -22,7 +22,7 @@ Diagnostics
 ===========
 
 After insmod, check with dmesg, if the module was loaded properly.  
-"v0.3b:USB Hanvon AM0806,AM1209 tablet driver" should appear in the listing.
+"USB Hanvon Artmaster I tablet driver v0.3d" should appear in the listing.
 
 lsmod should also contain hanvon in its listing: lsmod | grep hanvon
 
@@ -33,5 +33,6 @@ Revision history
 0.0.1 - initial release
   0.2 - corrected pressure detection, working slider button
   0.3 - remaining buttons also working, added x and y tilting
- 0.3b - patch for AM1209 support from Markus Zucker applied
-
+ 0.3b - patch for AM1209 from Markus Zucker applied
+ 0.3c - patch for AM1107 from Daniel Koch applied
+ 0.3d - support for right side buttons of AM1107 and AM1209

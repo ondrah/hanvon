@@ -7,7 +7,7 @@
 
 #define DRIVER_VERSION "0.4"
 #define DRIVER_AUTHOR "Ondra Havel <ondra.havel@gmail.com>"
-#define DRIVER_DESC "USB Hanvon Art Master I (AM0806 and AM1209) tablet driver"
+#define DRIVER_DESC "USB Hanvon Artmaster I tablet driver"
 #define DRIVER_LICENSE "GPL"
 
 MODULE_AUTHOR(DRIVER_AUTHOR);
@@ -16,13 +16,13 @@ MODULE_LICENSE(DRIVER_LICENSE);
 
 #define USB_VENDOR_ID_HANVON	0x0b57
 #define USB_PRODUCT_ID_AM0806	0x8502
+#define USB_PRODUCT_ID_AM1107	0x8505
 #define USB_PRODUCT_ID_AM1209	0x8501
 #define USB_AM_PACKET_LEN	10
 
-#define AM_BUTTON_0	BTN_0
-#define AM_BUTTON_1	BTN_1
-#define AM_BUTTON_2	BTN_2
-#define AM_BUTTON_3	BTN_3
+static int lbuttons[]={BTN_0,BTN_1,BTN_2,BTN_3};
+static int rbuttons[]={BTN_4,BTN_5,BTN_6,BTN_7};
+
 #define AM_WHEEL_THRESHOLD	4
 
 #define AM_MAX_ABS_X	0x27de
@@ -40,6 +40,25 @@ struct hanvon {
 	int old_wheel_pos;
 	char phys[32];
 };
+
+static void report_buttons(struct hanvon *hanvon, int buttons[],unsigned char dta)
+{
+	struct input_dev *dev = hanvon->dev;
+
+	if((dta & 0xf0) == 0xa0) {
+		input_report_key(dev, buttons[1], dta & 0x02);
+		input_report_key(dev, buttons[2], dta & 0x04);
+		input_report_key(dev, buttons[3], dta & 0x08);
+	} else {
+		if(dta <= 0x3f) {	/* slider area active */
+			int diff = dta - hanvon->old_wheel_pos;
+			if(abs(diff) < AM_WHEEL_THRESHOLD)
+				input_report_rel(dev, REL_WHEEL, diff);
+
+			hanvon->old_wheel_pos = dta;
+		}
+	}
+}
 
 static void hanvon_irq(struct urb *urb)
 {
@@ -64,34 +83,26 @@ static void hanvon_irq(struct urb *urb)
 	}
 
 	switch(data[0]) {
-	case 0x01:	/* button press */
-		if((data[2] & 0xf0) == 0xa0) {
-			input_report_key(dev, AM_BUTTON_1, data[2] & 0x02);
-			input_report_key(dev, AM_BUTTON_2, data[2] & 0x04);
-			input_report_key(dev, AM_BUTTON_3, data[2] & 0x08);
-		} else {
-			if(data[2] <= 0x3f) {	/* slider area active */
-				int diff = data[2] - hanvon->old_wheel_pos;
-				if(abs(diff) < AM_WHEEL_THRESHOLD)
-					input_report_rel(dev, REL_WHEEL, diff);
+		case 0x01:	/* button press */
+			if(data[1]==0x55)	/* left side */
+				report_buttons(hanvon,lbuttons,data[2]);
 
-				hanvon->old_wheel_pos = data[2];
+			if(data[3]==0xaa)	/* right side (am1107, am1209) */
+				report_buttons(hanvon,rbuttons,data[4]);
+			break;
+			
+		case 0x02:	/* position change */
+			if((data[1] & 0xf0) != 0) {
+				input_report_abs(dev, ABS_X, get_unaligned_be16(&data[2]));
+				input_report_abs(dev, ABS_Y, get_unaligned_be16(&data[4]));
+				input_report_abs(dev, ABS_TILT_X, data[7] & 0x3f);
+				input_report_abs(dev, ABS_TILT_Y, data[8]);
+				input_report_abs(dev, ABS_PRESSURE, get_unaligned_be16(&data[6])>>6);
 			}
-		}
-		break;
-		
-	case 0x02:	/* position change */
-		if((data[1] & 0xf0) != 0) {
-			input_report_abs(dev, ABS_X, get_unaligned_be16(&data[2]));
-			input_report_abs(dev, ABS_Y, get_unaligned_be16(&data[4]));
-			input_report_abs(dev, ABS_TILT_X, data[7] & 0x3f);
-			input_report_abs(dev, ABS_TILT_Y, data[8]);
-			input_report_abs(dev, ABS_PRESSURE, get_unaligned_be16(&data[6])>>6);
-		}
 
 		input_report_key(dev, BTN_LEFT, data[1] & 0x1);
 		input_report_key(dev, BTN_RIGHT, data[1] & 0x2);		/* stylus button pressed (right click) */
-		input_report_key(dev, AM_BUTTON_0, data[1] & 0x20);
+		input_report_key(dev, lbuttons[0], data[1] & 0x20);
 		break;
 	}
 
@@ -105,6 +116,7 @@ exit:
 
 static struct usb_device_id hanvon_ids[] = {
 	{ USB_DEVICE(USB_VENDOR_ID_HANVON, USB_PRODUCT_ID_AM1209) },
+	{ USB_DEVICE(USB_VENDOR_ID_HANVON, USB_PRODUCT_ID_AM1107) },
 	{ USB_DEVICE(USB_VENDOR_ID_HANVON, USB_PRODUCT_ID_AM0806) },
 	{ }
 };
@@ -136,7 +148,7 @@ static int hanvon_probe(struct usb_interface *intf, const struct usb_device_id *
 	struct usb_endpoint_descriptor *endpoint;
 	struct hanvon *hanvon;
 	struct input_dev *input_dev;
-	int error = -ENOMEM;
+	int error = -ENOMEM, i;
 
 	hanvon = kzalloc(sizeof(struct hanvon), GFP_KERNEL);
 	input_dev = input_allocate_device();
@@ -157,7 +169,7 @@ static int hanvon_probe(struct usb_interface *intf, const struct usb_device_id *
 	usb_make_path(dev, hanvon->phys, sizeof(hanvon->phys));
 	strlcat(hanvon->phys, "/input0", sizeof(hanvon->phys));
 
-	input_dev->name = "Hanvon Art Master Tablet";
+	input_dev->name = "Hanvon Artmaster I tablet";
 	input_dev->phys = hanvon->phys;
 	usb_to_input_id(dev, &input_dev->id);
 	input_dev->dev.parent = &intf->dev;
@@ -170,10 +182,10 @@ static int hanvon_probe(struct usb_interface *intf, const struct usb_device_id *
 	input_dev->evbit[0] |= BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS) | BIT_MASK(EV_REL);
 	input_dev->keybit[BIT_WORD(BTN_DIGI)] |= BIT_MASK(BTN_TOOL_PEN) | BIT_MASK(BTN_TOUCH);
 	input_dev->keybit[BIT_WORD(BTN_LEFT)] |= BIT_MASK(BTN_LEFT) | BIT_MASK(BTN_RIGHT);
-	__set_bit(AM_BUTTON_0, input_dev->keybit);
-	__set_bit(AM_BUTTON_1, input_dev->keybit);
-	__set_bit(AM_BUTTON_2, input_dev->keybit);
-	__set_bit(AM_BUTTON_3, input_dev->keybit);
+	for(i=0;i<sizeof(lbuttons)/sizeof(lbuttons[0]);i++)
+		__set_bit(lbuttons[i], input_dev->keybit);
+	for(i=0;i<sizeof(rbuttons)/sizeof(rbuttons[0]);i++)
+		__set_bit(rbuttons[i], input_dev->keybit);
 
 	input_set_abs_params(input_dev, ABS_X, 0, AM_MAX_ABS_X, 4, 0);
 	input_set_abs_params(input_dev, ABS_Y, 0, AM_MAX_ABS_Y, 4, 0);
@@ -233,7 +245,7 @@ static int __init hanvon_init(void)
 	if((rv = usb_register(&hanvon_driver)) != 0)
 		return rv;
 
-	printk(KERN_INFO KBUILD_MODNAME ": " DRIVER_VERSION ":" DRIVER_DESC "\n");
+	printk(DRIVER_DESC " " DRIVER_VERSION "\n");
 
 	return 0;
 }
