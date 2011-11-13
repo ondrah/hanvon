@@ -7,7 +7,7 @@
 
 #define DRIVER_VERSION "0.4"
 #define DRIVER_AUTHOR "Ondra Havel <ondra.havel@gmail.com>"
-#define DRIVER_DESC "USB Hanvon Artmaster I tablet driver"
+#define DRIVER_DESC "USB Hanvon tablet driver"
 #define DRIVER_LICENSE "GPL"
 
 MODULE_AUTHOR(DRIVER_AUTHOR);
@@ -18,10 +18,11 @@ MODULE_LICENSE(DRIVER_LICENSE);
 #define USB_PRODUCT_ID_AM0806	0x8502
 #define USB_PRODUCT_ID_AM1107	0x8505
 #define USB_PRODUCT_ID_AM1209	0x8501
+#define USB_PRODUCT_ID_RL0604	0x851f
 #define USB_AM_PACKET_LEN	10
 
-static int lbuttons[]={BTN_0,BTN_1,BTN_2,BTN_3};
-static int rbuttons[]={BTN_4,BTN_5,BTN_6,BTN_7};
+static int lbuttons[]={BTN_0,BTN_1,BTN_2,BTN_3};	/* reported on all AMs */
+static int rbuttons[]={BTN_4,BTN_5,BTN_6,BTN_7};	/* reported on AM1107+ */
 
 #define AM_WHEEL_THRESHOLD	4
 
@@ -118,6 +119,7 @@ static struct usb_device_id hanvon_ids[] = {
 	{ USB_DEVICE(USB_VENDOR_ID_HANVON, USB_PRODUCT_ID_AM1209) },
 	{ USB_DEVICE(USB_VENDOR_ID_HANVON, USB_PRODUCT_ID_AM1107) },
 	{ USB_DEVICE(USB_VENDOR_ID_HANVON, USB_PRODUCT_ID_AM0806) },
+	{ USB_DEVICE(USB_VENDOR_ID_HANVON, USB_PRODUCT_ID_RL0604) },
 	{ }
 };
 
