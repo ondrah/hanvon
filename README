@@ -29,7 +29,7 @@ Diagnostics
 ===========
 
 After insmod, check with dmesg, if the module was loaded properly.  
-"USB Hanvon Artmaster I tablet driver v0.3d" should appear in the listing.
+"USB Hanvon tablet driver" should appear in the listing.
 
 lsmod should also contain hanvon in its listing: lsmod | grep hanvon
 
