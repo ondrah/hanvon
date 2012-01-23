@@ -3,9 +3,8 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/usb/input.h>
-#include <asm/unaligned.h>
 
-#define DRIVER_VERSION "0.4"
+#define DRIVER_VERSION "0.4a"
 #define DRIVER_AUTHOR "Ondra Havel <ondra.havel@gmail.com>"
 #define DRIVER_DESC "USB Hanvon tablet driver"
 #define DRIVER_LICENSE "GPL"
@@ -35,6 +34,7 @@ static int rbuttons[]={BTN_4,BTN_5,BTN_6,BTN_7};	/* reported on AM1107+ */
 struct hanvon {
 	unsigned char *data;
 	dma_addr_t data_dma;
+	struct mutex mutex;
 	struct input_dev *dev;
 	struct usb_device *usbdev;
 	struct urb *irq;
@@ -91,14 +91,13 @@ static void hanvon_irq(struct urb *urb)
 			if(data[3]==0xaa)	/* right side (am1107, am1209) */
 				report_buttons(hanvon,rbuttons,data[4]);
 			break;
-			
 		case 0x02:	/* position change */
 			if((data[1] & 0xf0) != 0) {
-				input_report_abs(dev, ABS_X, get_unaligned_be16(&data[2]));
-				input_report_abs(dev, ABS_Y, get_unaligned_be16(&data[4]));
+				input_report_abs(dev, ABS_X, be16_to_cpup((__be16 *)&data[2]));
+				input_report_abs(dev, ABS_Y, be16_to_cpup((__be16 *)&data[4]));
 				input_report_abs(dev, ABS_TILT_X, data[7] & 0x3f);
 				input_report_abs(dev, ABS_TILT_Y, data[8]);
-				input_report_abs(dev, ABS_PRESSURE, get_unaligned_be16(&data[6])>>6);
+				input_report_abs(dev, ABS_PRESSURE, be16_to_cpup((__be16 *)&data[6])>>6);
 			}
 
 		input_report_key(dev, BTN_LEFT, data[1] & 0x1);
@@ -127,21 +126,25 @@ MODULE_DEVICE_TABLE(usb, hanvon_ids);
 
 static int hanvon_open(struct input_dev *dev)
 {
+	int ret=0;
 	struct hanvon *hanvon = input_get_drvdata(dev);
 
 	hanvon->old_wheel_pos = -AM_WHEEL_THRESHOLD-1;
 	hanvon->irq->dev = hanvon->usbdev;
-	if (usb_submit_urb(hanvon->irq, GFP_KERNEL))
-		return -EIO;
-
-	return 0;
+	mutex_lock(&hanvon->mutex);
+	if(usb_submit_urb(hanvon->irq, GFP_KERNEL))
+		ret = -EIO;
+	mutex_unlock(&hanvon->mutex);
+	return ret;
 }
 
 static void hanvon_close(struct input_dev *dev)
 {
 	struct hanvon *hanvon = input_get_drvdata(dev);
 
+	mutex_lock(&hanvon->mutex);
 	usb_kill_urb(hanvon->irq);
+	mutex_unlock(&hanvon->mutex);
 }
 
 static int hanvon_probe(struct usb_interface *intf, const struct usb_device_id *id)
@@ -210,6 +213,7 @@ static int hanvon_probe(struct usb_interface *intf, const struct usb_device_id *
 		goto fail3;
 
 	usb_set_intfdata(intf, hanvon);
+	mutex_init(&hanvon->mutex);
 	return 0;
 
 fail3:	usb_free_urb(hanvon->irq);
@@ -224,13 +228,12 @@ static void hanvon_disconnect(struct usb_interface *intf)
 	struct hanvon *hanvon = usb_get_intfdata(intf);
 
 	usb_set_intfdata(intf, NULL);
-	if (hanvon) {
-		usb_kill_urb(hanvon->irq);
-		input_unregister_device(hanvon->dev);
-		usb_free_urb(hanvon->irq);
-		usb_free_coherent(interface_to_usbdev(intf), USB_AM_PACKET_LEN, hanvon->data, hanvon->data_dma);
-		kfree(hanvon);
-	}
+
+	usb_kill_urb(hanvon->irq);
+	input_unregister_device(hanvon->dev);
+	usb_free_urb(hanvon->irq);
+	usb_free_coherent(interface_to_usbdev(intf), USB_AM_PACKET_LEN, hanvon->data, hanvon->data_dma);
+	kfree(hanvon);
 }
 
 static struct usb_driver hanvon_driver = {

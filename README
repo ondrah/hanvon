@@ -1,9 +1,9 @@
 Hanvon tablet driver
 ====================
 
-Driver for Linux kernels which supports complete functionality of the tablet:
-pen coordinates, touch/float/click detection, pressure, x and y tilt, pen
-button. On Artmaster I four simple tablet buttons (note that the first
+Linux kernel driver for some Hanvon tablet usb models. Following functionality
+is covered.  pen coordinates, touch/float/click detection, pressure, x and y
+tilt, pen button. On Artmaster I four simple tablet buttons (note that the first
 one works only together with pen activity), and the slider button.
 
 
