@@ -66,7 +66,7 @@ static void hanvon_irq(struct urb *urb)
 	struct hanvon *hanvon = urb->context;
 	unsigned char *data = hanvon->data;
 	struct input_dev *dev = hanvon->dev;
-	int retval;
+	int ret;
 
 	switch (urb->status) {
 		case 0:
@@ -109,9 +109,9 @@ static void hanvon_irq(struct urb *urb)
 	input_sync(dev);
 
 exit:
-	retval = usb_submit_urb (urb, GFP_ATOMIC);
-	if (retval)
-		err("%s - usb_submit_urb failed with result %d", __func__, retval);
+	ret = usb_submit_urb (urb, GFP_ATOMIC);
+	if (ret)
+		err("%s - usb_submit_urb failed with result %d", __func__, ret);
 }
 
 static struct usb_device_id hanvon_ids[] = {
@@ -228,7 +228,6 @@ static void hanvon_disconnect(struct usb_interface *intf)
 	struct hanvon *hanvon = usb_get_intfdata(intf);
 
 	usb_set_intfdata(intf, NULL);
-
 	usb_kill_urb(hanvon->irq);
 	input_unregister_device(hanvon->dev);
 	usb_free_urb(hanvon->irq);
@@ -245,10 +244,10 @@ static struct usb_driver hanvon_driver = {
 
 static int __init hanvon_init(void)
 {
-	int rv;
+	int ret;
 
-	if((rv = usb_register(&hanvon_driver)) != 0)
-		return rv;
+	if((ret = usb_register(&hanvon_driver)) != 0)
+		return ret;
 
 	printk(DRIVER_DESC " " DRIVER_VERSION "\n");
 
