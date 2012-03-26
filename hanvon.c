@@ -4,7 +4,7 @@
 #include <linux/init.h>
 #include <linux/usb/input.h>
 
-#define DRIVER_VERSION "0.4a"
+#define DRIVER_VERSION "0.4b"
 #define DRIVER_AUTHOR "Ondra Havel <ondra.havel@gmail.com>"
 #define DRIVER_DESC "USB Hanvon tablet driver"
 #define DRIVER_LICENSE "GPL"
@@ -20,8 +20,10 @@ MODULE_LICENSE(DRIVER_LICENSE);
 #define USB_PRODUCT_ID_RL0604	0x851f
 #define USB_AM_PACKET_LEN	10
 
-static int lbuttons[]={BTN_0,BTN_1,BTN_2,BTN_3};	/* reported on all AMs */
-static int rbuttons[]={BTN_4,BTN_5,BTN_6,BTN_7};	/* reported on AM1107+ */
+/* reported on all AMs */
+static int lbuttons[] = {BTN_0, BTN_1, BTN_2, BTN_3};
+/* reported on AM1107+ */
+static int rbuttons[] = {BTN_4, BTN_5, BTN_6, BTN_7};
 
 #define AM_WHEEL_THRESHOLD	4
 
@@ -34,7 +36,6 @@ static int rbuttons[]={BTN_4,BTN_5,BTN_6,BTN_7};	/* reported on AM1107+ */
 struct hanvon {
 	unsigned char *data;
 	dma_addr_t data_dma;
-	struct mutex mutex;
 	struct input_dev *dev;
 	struct usb_device *usbdev;
 	struct urb *irq;
@@ -42,18 +43,20 @@ struct hanvon {
 	char phys[32];
 };
 
-static void report_buttons(struct hanvon *hanvon, int buttons[],unsigned char dta)
+static void report_buttons(struct hanvon *hanvon,
+		int buttons[], unsigned char dta)
 {
 	struct input_dev *dev = hanvon->dev;
 
-	if((dta & 0xf0) == 0xa0) {
+	if ((dta & 0xf0) == 0xa0) {
 		input_report_key(dev, buttons[1], dta & 0x02);
 		input_report_key(dev, buttons[2], dta & 0x04);
 		input_report_key(dev, buttons[3], dta & 0x08);
 	} else {
-		if(dta <= 0x3f) {	/* slider area active */
+		if (dta <= 0x3f) {	/* slider area active */
 			int diff = dta - hanvon->old_wheel_pos;
-			if(abs(diff) < AM_WHEEL_THRESHOLD)
+			/* detect new/continue old move */
+			if (abs(diff) < AM_WHEEL_THRESHOLD)
 				input_report_rel(dev, REL_WHEEL, diff);
 
 			hanvon->old_wheel_pos = dta;
@@ -69,49 +72,56 @@ static void hanvon_irq(struct urb *urb)
 	int ret;
 
 	switch (urb->status) {
-		case 0:
-			/* success */
-			break;
-		case -ECONNRESET:
-		case -ENOENT:
-		case -ESHUTDOWN:
-			/* this urb is terminated, clean up */
-			dbg("%s - urb shutting down with status: %d", __func__, urb->status);
-			return;
-		default:
-			dbg("%s - nonzero urb status received: %d", __func__, urb->status);
-			goto exit;
+	case 0:
+		/* success */
+		break;
+	case -ECONNRESET:
+	case -ENOENT:
+	case -ESHUTDOWN:
+		/* this urb is terminated, clean up */
+		dbg("%s - urb shutting down with status: %d",
+				__func__, urb->status);
+		return;
+	default:
+		dbg("%s - nonzero urb status received: %d",
+				__func__, urb->status);
+		goto exit;
 	}
 
-	switch(data[0]) {
-		case 0x01:	/* button press */
-			if(data[1]==0x55)	/* left side */
-				report_buttons(hanvon,lbuttons,data[2]);
+	switch (data[0]) {
+	case 0x01:	/* button press */
+		if (data[1] == 0x55)	/* left side */
+			report_buttons(hanvon, lbuttons, data[2]);
 
-			if(data[3]==0xaa)	/* right side (am1107, am1209) */
-				report_buttons(hanvon,rbuttons,data[4]);
-			break;
-		case 0x02:	/* position change */
-			if((data[1] & 0xf0) != 0) {
-				input_report_abs(dev, ABS_X, be16_to_cpup((__be16 *)&data[2]));
-				input_report_abs(dev, ABS_Y, be16_to_cpup((__be16 *)&data[4]));
-				input_report_abs(dev, ABS_TILT_X, data[7] & 0x3f);
-				input_report_abs(dev, ABS_TILT_Y, data[8]);
-				input_report_abs(dev, ABS_PRESSURE, be16_to_cpup((__be16 *)&data[6])>>6);
-			}
-
-		input_report_key(dev, BTN_LEFT, data[1] & 0x1);
-		input_report_key(dev, BTN_RIGHT, data[1] & 0x2);		/* stylus button pressed (right click) */
-		input_report_key(dev, lbuttons[0], data[1] & 0x20);
+		if (data[3] == 0xaa)	/* right side (am1107, am1209) */
+			report_buttons(hanvon, rbuttons, data[4]);
 		break;
+	case 0x02:	/* position change */
+		if ((data[1] & 0xf0) != 0) {
+			input_report_abs(dev, ABS_X,
+					be16_to_cpup((__be16 *)&data[2]));
+			input_report_abs(dev, ABS_Y,
+					be16_to_cpup((__be16 *)&data[4]));
+			input_report_abs(dev, ABS_TILT_X, data[7] & 0x3f);
+			input_report_abs(dev, ABS_TILT_Y, data[8]);
+			input_report_abs(dev, ABS_PRESSURE,
+					be16_to_cpup((__be16 *)&data[6])>>6);
+		}
+
+	input_report_key(dev, BTN_LEFT, data[1] & 0x1);
+	/* stylus button pressed (right click) */
+	input_report_key(dev, BTN_RIGHT, data[1] & 0x2);
+	input_report_key(dev, lbuttons[0], data[1] & 0x20);
+	break;
 	}
 
 	input_sync(dev);
 
 exit:
-	ret = usb_submit_urb (urb, GFP_ATOMIC);
+	ret = usb_submit_urb(urb, GFP_ATOMIC);
 	if (ret)
-		err("%s - usb_submit_urb failed with result %d", __func__, ret);
+		err("%s - usb_submit_urb failed with result %d",
+				__func__, ret);
 }
 
 static struct usb_device_id hanvon_ids[] = {
@@ -126,15 +136,13 @@ MODULE_DEVICE_TABLE(usb, hanvon_ids);
 
 static int hanvon_open(struct input_dev *dev)
 {
-	int ret=0;
+	int ret = 0;
 	struct hanvon *hanvon = input_get_drvdata(dev);
 
 	hanvon->old_wheel_pos = -AM_WHEEL_THRESHOLD-1;
 	hanvon->irq->dev = hanvon->usbdev;
-	mutex_lock(&hanvon->mutex);
-	if(usb_submit_urb(hanvon->irq, GFP_KERNEL))
+	if (usb_submit_urb(hanvon->irq, GFP_KERNEL))
 		ret = -EIO;
-	mutex_unlock(&hanvon->mutex);
 	return ret;
 }
 
@@ -142,12 +150,11 @@ static void hanvon_close(struct input_dev *dev)
 {
 	struct hanvon *hanvon = input_get_drvdata(dev);
 
-	mutex_lock(&hanvon->mutex);
 	usb_kill_urb(hanvon->irq);
-	mutex_unlock(&hanvon->mutex);
 }
 
-static int hanvon_probe(struct usb_interface *intf, const struct usb_device_id *id)
+static int hanvon_probe(struct usb_interface *intf,
+		const struct usb_device_id *id)
 {
 	struct usb_device *dev = interface_to_usbdev(intf);
 	struct usb_endpoint_descriptor *endpoint;
@@ -160,7 +167,8 @@ static int hanvon_probe(struct usb_interface *intf, const struct usb_device_id *
 	if (!hanvon || !input_dev)
 		goto fail1;
 
-	hanvon->data = (unsigned char *)usb_alloc_coherent(dev, USB_AM_PACKET_LEN, GFP_KERNEL, &hanvon->data_dma);
+	hanvon->data = usb_alloc_coherent(dev,
+			USB_AM_PACKET_LEN, GFP_KERNEL, &hanvon->data_dma);
 	if (!hanvon->data)
 		goto fail1;
 
@@ -184,19 +192,26 @@ static int hanvon_probe(struct usb_interface *intf, const struct usb_device_id *
 	input_dev->open = hanvon_open;
 	input_dev->close = hanvon_close;
 
-	input_dev->evbit[0] |= BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS) | BIT_MASK(EV_REL);
-	input_dev->keybit[BIT_WORD(BTN_DIGI)] |= BIT_MASK(BTN_TOOL_PEN) | BIT_MASK(BTN_TOUCH);
-	input_dev->keybit[BIT_WORD(BTN_LEFT)] |= BIT_MASK(BTN_LEFT) | BIT_MASK(BTN_RIGHT);
-	for(i=0;i<sizeof(lbuttons)/sizeof(lbuttons[0]);i++)
+	__set_bit(EV_KEY, input_dev->evbit);
+	__set_bit(EV_ABS, input_dev->evbit);
+	__set_bit(EV_REL, input_dev->evbit);
+	__set_bit(BTN_TOOL_PEN, input_dev->keybit);
+	__set_bit(BTN_TOUCH, input_dev->keybit);
+	__set_bit(BTN_LEFT, input_dev->keybit);
+	__set_bit(BTN_RIGHT, input_dev->keybit);
+	for (i = 0; i < sizeof(lbuttons) / sizeof(lbuttons[0]); i++)
 		__set_bit(lbuttons[i], input_dev->keybit);
-	for(i=0;i<sizeof(rbuttons)/sizeof(rbuttons[0]);i++)
+	for (i = 0; i < sizeof(rbuttons) / sizeof(rbuttons[0]); i++)
 		__set_bit(rbuttons[i], input_dev->keybit);
 
 	input_set_abs_params(input_dev, ABS_X, 0, AM_MAX_ABS_X, 4, 0);
 	input_set_abs_params(input_dev, ABS_Y, 0, AM_MAX_ABS_Y, 4, 0);
-	input_set_abs_params(input_dev, ABS_TILT_X, 0, AM_MAX_TILT_X, 0, 0);
-	input_set_abs_params(input_dev, ABS_TILT_Y, 0, AM_MAX_TILT_Y, 0, 0);
-	input_set_abs_params(input_dev, ABS_PRESSURE, 0, AM_MAX_PRESSURE, 0, 0);
+	input_set_abs_params(input_dev, ABS_TILT_X,
+			0, AM_MAX_TILT_X, 0, 0);
+	input_set_abs_params(input_dev, ABS_TILT_Y,
+			0, AM_MAX_TILT_Y, 0, 0);
+	input_set_abs_params(input_dev, ABS_PRESSURE,
+			0, AM_MAX_PRESSURE, 0, 0);
 	input_set_capability(input_dev, EV_REL, REL_WHEEL);
 
 	endpoint = &intf->cur_altsetting->endpoint[0].desc;
@@ -208,16 +223,17 @@ static int hanvon_probe(struct usb_interface *intf, const struct usb_device_id *
 	hanvon->irq->transfer_dma = hanvon->data_dma;
 	hanvon->irq->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
 
+	usb_set_intfdata(intf, hanvon);
+
 	error = input_register_device(hanvon->dev);
 	if (error)
 		goto fail3;
 
-	usb_set_intfdata(intf, hanvon);
-	mutex_init(&hanvon->mutex);
 	return 0;
 
 fail3:	usb_free_urb(hanvon->irq);
-fail2:	usb_free_coherent(dev, USB_AM_PACKET_LEN, hanvon->data, hanvon->data_dma);
+fail2:	usb_free_coherent(dev, USB_AM_PACKET_LEN,
+				hanvon->data, hanvon->data_dma);
 fail1:	input_free_device(input_dev);
 	kfree(hanvon);
 	return error;
@@ -227,12 +243,12 @@ static void hanvon_disconnect(struct usb_interface *intf)
 {
 	struct hanvon *hanvon = usb_get_intfdata(intf);
 
-	usb_set_intfdata(intf, NULL);
-	usb_kill_urb(hanvon->irq);
 	input_unregister_device(hanvon->dev);
 	usb_free_urb(hanvon->irq);
-	usb_free_coherent(interface_to_usbdev(intf), USB_AM_PACKET_LEN, hanvon->data, hanvon->data_dma);
+	usb_free_coherent(interface_to_usbdev(intf),
+			USB_AM_PACKET_LEN, hanvon->data, hanvon->data_dma);
 	kfree(hanvon);
+	usb_set_intfdata(intf, NULL);
 }
 
 static struct usb_driver hanvon_driver = {
@@ -244,14 +260,8 @@ static struct usb_driver hanvon_driver = {
 
 static int __init hanvon_init(void)
 {
-	int ret;
-
-	if((ret = usb_register(&hanvon_driver)) != 0)
-		return ret;
-
 	printk(DRIVER_DESC " " DRIVER_VERSION "\n");
-
-	return 0;
+	return usb_register(&hanvon_driver);
 }
 
 static void __exit hanvon_exit(void)
