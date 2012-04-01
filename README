@@ -25,15 +25,6 @@ insmod ./hanvon.ko
 If everything goes right the tablet should start working immediately.
 
 
-Diagnostics
-===========
-
-After insmod, check with dmesg, if the module was loaded properly.  
-"USB Hanvon tablet driver" should appear in the listing.
-
-lsmod should also contain hanvon in its listing: lsmod | grep hanvon
-
-
 Revision history
 ================
 

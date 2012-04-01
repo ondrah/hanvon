@@ -4,7 +4,6 @@
 #include <linux/init.h>
 #include <linux/usb/input.h>
 
-#define DRIVER_VERSION "0.4b"
 #define DRIVER_AUTHOR "Ondra Havel <ondra.havel@gmail.com>"
 #define DRIVER_DESC "USB Hanvon tablet driver"
 #define DRIVER_LICENSE "GPL"
@@ -136,14 +135,14 @@ MODULE_DEVICE_TABLE(usb, hanvon_ids);
 
 static int hanvon_open(struct input_dev *dev)
 {
-	int ret = 0;
 	struct hanvon *hanvon = input_get_drvdata(dev);
 
 	hanvon->old_wheel_pos = -AM_WHEEL_THRESHOLD-1;
 	hanvon->irq->dev = hanvon->usbdev;
 	if (usb_submit_urb(hanvon->irq, GFP_KERNEL))
-		ret = -EIO;
-	return ret;
+		return -EIO;
+
+	return 0;
 }
 
 static void hanvon_close(struct input_dev *dev)
@@ -258,16 +257,4 @@ static struct usb_driver hanvon_driver = {
 	.id_table =	hanvon_ids,
 };
 
-static int __init hanvon_init(void)
-{
-	printk(DRIVER_DESC " " DRIVER_VERSION "\n");
-	return usb_register(&hanvon_driver);
-}
-
-static void __exit hanvon_exit(void)
-{
-	usb_deregister(&hanvon_driver);
-}
-
-module_init(hanvon_init);
-module_exit(hanvon_exit);
+module_usb_driver(hanvon_driver);
