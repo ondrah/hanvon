@@ -10,7 +10,7 @@ one works only together with pen activity), and the slider button.
 Supported hardware
 ==================
 
-Artmaster I: AM0806, AM1107, AM1209
+Artmaster I: AM0605, AM0806, AM1107, AM1209
 Rollick: RL0604
 
 
@@ -35,3 +35,4 @@ Revision history
  0.3c - patch for AM1107 from Daniel Koch applied
  0.3d - support for right side buttons of AM1107 and AM1209
   0.4 - code cleanup, RL0604 patch from Daniel Clemmer
+  0.5 - code cleanup, AM0605 support
