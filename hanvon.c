@@ -5,7 +5,7 @@
 #include <linux/usb/input.h>
 #include <asm/unaligned.h>
 
-#define DRIVER_VERSION "0.4"
+#define DRIVER_VERSION "0.5"
 #define DRIVER_AUTHOR "Ondra Havel <ondra.havel@gmail.com>"
 #define DRIVER_DESC "USB Hanvon tablet driver"
 #define DRIVER_LICENSE "GPL"
@@ -15,11 +15,13 @@ MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE(DRIVER_LICENSE);
 
 #define USB_VENDOR_ID_HANVON	0x0b57
+#define USB_PRODUCT_ID_AM3M		0x8528
 #define USB_PRODUCT_ID_AM0806	0x8502
 #define USB_PRODUCT_ID_AM0605	0x8503
 #define USB_PRODUCT_ID_AM1107	0x8505
 #define USB_PRODUCT_ID_AM1209	0x8501
 #define USB_PRODUCT_ID_RL0604	0x851f
+#define USB_PRODUCT_ID_RL0504   0x851d
 #define USB_AM_PACKET_LEN	10
 
 static int lbuttons[]={BTN_0,BTN_1,BTN_2,BTN_3};	/* reported on all AMs */
@@ -92,7 +94,7 @@ static void hanvon_irq(struct urb *urb)
 			if(data[3]==0xaa)	/* right side (am1107, am1209) */
 				report_buttons(hanvon,rbuttons,data[4]);
 			break;
-			
+
 		case 0x02:	/* position change */
 			if((data[1] & 0xf0) != 0) {
 				input_report_abs(dev, ABS_X, get_unaligned_be16(&data[2]));
@@ -113,15 +115,17 @@ static void hanvon_irq(struct urb *urb)
 exit:
 	retval = usb_submit_urb (urb, GFP_ATOMIC);
 	if (retval)
-		err("%s - usb_submit_urb failed with result %d", __func__, retval);
+		dbg("%s - usb_submit_urb failed with result %d", __func__, retval);
 }
 
 static struct usb_device_id hanvon_ids[] = {
+	{ USB_DEVICE(USB_VENDOR_ID_HANVON, USB_PRODUCT_ID_AM3M) },
 	{ USB_DEVICE(USB_VENDOR_ID_HANVON, USB_PRODUCT_ID_AM1209) },
 	{ USB_DEVICE(USB_VENDOR_ID_HANVON, USB_PRODUCT_ID_AM1107) },
 	{ USB_DEVICE(USB_VENDOR_ID_HANVON, USB_PRODUCT_ID_AM0806) },
 	{ USB_DEVICE(USB_VENDOR_ID_HANVON, USB_PRODUCT_ID_AM0605) },
 	{ USB_DEVICE(USB_VENDOR_ID_HANVON, USB_PRODUCT_ID_RL0604) },
+	{ USB_DEVICE(USB_VENDOR_ID_HANVON, USB_PRODUCT_ID_RL0504) },
 	{ }
 };
 
