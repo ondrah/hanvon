@@ -10,8 +10,9 @@ one works only together with pen activity), and the slider button.
 Supported hardware
 ==================
 
-Artmaster I: AM0806, AM1107, AM1209
-Rollick: RL0604
+AM3M, AM0806, AM0605, AM1107, AM1209, RL0604, RL0504, GP0806
+
+AM - Artmaster I, RL - Rollick, GP - GraphicPal
 
 
 Installation
@@ -32,15 +33,3 @@ After insmod, check with dmesg, if the module was loaded properly.
 "USB Hanvon tablet driver" should appear in the listing.
 
 lsmod should also contain hanvon in its listing: lsmod | grep hanvon
-
-
-Revision history
-================
-
-0.0.1 - initial release
-  0.2 - corrected pressure detection, working slider button
-  0.3 - remaining buttons also working, added x and y tilting
- 0.3b - patch for AM1209 from Markus Zucker applied
- 0.3c - patch for AM1107 from Daniel Koch applied
- 0.3d - support for right side buttons of AM1107 and AM1209
-  0.4 - code cleanup, RL0604 patch from Daniel Clemmer
