@@ -10,9 +10,9 @@ one works only together with pen activity), and the slider button.
 Supported hardware
 ==================
 
-AM3M, AM0806, AM0605, AM1107, AM1209
+AM3M, AM0605, AM0806, AM1107, AM1209
 RL0604, RL0504
-GP0806, GP0605, GP0504
+GP0504, GP0605, GP0605+, GP0806
 NXS1315
 
 AM - Artmaster I, RL - Rollick, GP - GraphicPal, NXS - Nilox
