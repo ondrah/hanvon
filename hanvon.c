@@ -38,8 +38,6 @@ static int rbuttons[]={BTN_4,BTN_5,BTN_6,BTN_7};   /* reported on AM1107+ */
 
 #define AM_WHEEL_THRESHOLD   4
 
-#define AM_MAX_ABS_X   0x27de
-#define AM_MAX_ABS_Y   0x1cfe
 #define AM_MAX_TILT_X   0x3f
 #define AM_MAX_TILT_Y   0x7f
 #define AM_MAX_PRESSURE   0x400
@@ -78,6 +76,9 @@ static inline void handle_default(struct hanvon *hanvon)
 	unsigned char *data = hanvon->data;
 	struct input_dev *dev = hanvon->dev;
 
+#define AM_MAX_ABS_X   0x27de
+#define AM_MAX_ABS_Y   0x1cfe
+
 	switch(data[0]) {
 		case 0x01:   /* button press */
 			if(data[1]==0x55)   /* left side */
@@ -89,17 +90,17 @@ static inline void handle_default(struct hanvon *hanvon)
 
 		case 0x02:   /* position change */
 			if((data[1] & 0xf0) != 0) {
-				input_report_abs(hanvon->dev, ABS_X, get_unaligned_be16(&data[2]));
-				input_report_abs(dev, ABS_Y, get_unaligned_be16(&data[4]));
+				input_report_abs(dev, ABS_X, get_unaligned_be16(&data[2]) * 0xffff / AM_MAX_ABS_X);
+				input_report_abs(dev, ABS_Y, get_unaligned_be16(&data[4]) * 0xffff / AM_MAX_ABS_Y);
 				input_report_abs(dev, ABS_TILT_X, data[7] & 0x3f);
 				input_report_abs(dev, ABS_TILT_Y, data[8]);
 				input_report_abs(dev, ABS_PRESSURE, get_unaligned_be16(&data[6])>>6);
 			}
 
-		input_report_key(dev, BTN_LEFT, data[1] & 0x1); /* pen touches the surface */
-		input_report_key(dev, BTN_RIGHT, data[1] & 0x2); /* stylus button pressed (right click) */
-		input_report_key(dev, lbuttons[0], data[1] & 0x20);	/* 'eraser' button */
-		break;
+			input_report_key(dev, BTN_LEFT, data[1] & 0x01); /* pen touches the surface */
+			input_report_key(dev, BTN_RIGHT, data[1] & 0x02); /* stylus button pressed (right click) */
+			input_report_key(dev, lbuttons[0], data[1] & 0x20);	/* 'eraser' button */
+			break;
 	}
 }
 
@@ -117,16 +118,14 @@ hanvon graphic pal 3, gp0906!
 	switch( data[0] ) {
 		case 0x02:	/* pen event */
 			if( ( data[1] & 0xe0) == 0xe0 ) {
-				if( ( data[1] & 0x01) != 0 )	/* pressure change */
+				if( data[1] & 0x01 )	/* pressure change */
 					input_report_abs(dev, ABS_PRESSURE, get_unaligned_be16(&data[6])>>6);
 				
-				if( ( data[1] & 0x04 ) != 0 )
+				if( data[1] & 0x04 )
 					input_report_key(dev, BTN_RIGHT, data[1] & 0x2);		/* stylus button pressed (right click)  */
 				
-				input_report_abs(dev, ABS_X, get_unaligned_be16(&data[2]));
-				input_report_abs(dev, ABS_Y, get_unaligned_be16(&data[4]));
-				input_report_abs(dev, ABS_TILT_X, data[7] & 0x3f);
-				input_report_abs(dev, ABS_TILT_Y, data[8]);
+				input_report_abs(dev, ABS_X, get_unaligned_be16(&data[2]) * 0xffff / AM_MAX_ABS_X);
+				input_report_abs(dev, ABS_Y, get_unaligned_be16(&data[4]) * 0xffff / AM_MAX_ABS_Y);
 
 				input_report_key(dev, lbuttons[0], data[6]);
 			} else {
@@ -152,34 +151,37 @@ static inline void handle_appiv0906(struct hanvon *hanvon)
 	unsigned char *data = hanvon->data;
 	struct input_dev *dev = hanvon->dev;
 
+#define APPIV_XMAX	0x5750
+#define APPIV_YMAX	0x3692
+
 	switch(data[0]) {
-		case 0x01:	/* pen event */
-			input_report_abs(dev, ABS_X, get_unaligned_be16(&data[2]));
-			input_report_abs(dev, ABS_Y, get_unaligned_be16(&data[4]));
+		case 0x01:	/* pen button event */
+			input_report_abs(dev, ABS_X, get_unaligned_le16(&data[2]) * 0xffff / APPIV_XMAX);
+			input_report_abs(dev, ABS_Y, get_unaligned_le16(&data[4]) * 0xffff / APPIV_YMAX);
+			input_report_key(dev, BTN_LEFT, data[1] & 0x01); /* pen touches the surface */
+			input_report_key(dev, BTN_RIGHT, data[1] & 0x02); /* stylus button pressed (right click) */
+			input_report_key(dev, BTN_MIDDLE, data[1] & 0x04); /* stylus button pressed (right click) */
+			input_report_key(dev, BTN_0, data[1] & 0x08); /* stylus button pressed (right click) */
+			break;
 
-			input_report_abs(dev, ABS_TILT_X, data[6] & 0x3f);
-			input_report_abs(dev, ABS_TILT_Y, data[7]);
+		case 0x02:	/* pen event */
+			input_report_abs(dev, ABS_X, get_unaligned_be16(&data[2]) * 0xffff / APPIV_XMAX);
+			input_report_abs(dev, ABS_Y, get_unaligned_be16(&data[4]) * 0xffff / APPIV_YMAX);
 
-			if(data[1] != 0x15) {
-				input_report_key(dev, BTN_LEFT, data[1] & 0x01); /* pen touches the surface */
-				input_report_key(dev, BTN_RIGHT, data[1] & 0x02); /* stylus button pressed (right click) */
-				input_report_key(dev, BTN_MIDDLE, data[1] & 0x03); /* stylus button pressed (right click) */
-				input_report_key(dev, BTN_TOOL_RUBBER, false);	/* 'eraser' button */
-			} else {
-				input_report_key(dev, BTN_TOOL_RUBBER, true);	/* 'eraser' button */
-			}
+			if(data[1] & 1)
+				input_report_abs(dev, ABS_PRESSURE, get_unaligned_be16(&data[6])>>6);
+
 
 			break;
 
-		case 0x0c:	/* button event */
-			input_report_key(dev, BTN_0, data[3] & 0x01);
-			input_report_key(dev, BTN_1, data[3] & 0x02);
-			input_report_key(dev, BTN_2, data[3] & 0x04);
-			input_report_key(dev, BTN_3, data[3] & 0x08);
-			input_report_key(dev, BTN_4, data[3] & 0x10);
-			input_report_key(dev, BTN_5, data[3] & 0x20);
-			input_report_key(dev, BTN_6, data[3] & 0x40);
-			input_report_key(dev, BTN_7, data[3] & 0x80);
+		case 0x0c:	/* tablet button event */
+			input_report_key(dev, BTN_1, data[3] & 0x01);
+			input_report_key(dev, BTN_2, data[3] & 0x02);
+			input_report_key(dev, BTN_3, data[3] & 0x04);
+			input_report_key(dev, BTN_4, data[3] & 0x08);
+			input_report_key(dev, BTN_5, data[3] & 0x10);
+			input_report_key(dev, BTN_6, data[3] & 0x20);
+			input_report_key(dev, BTN_7, data[3] & 0x40);
 			break;
 	}
 }
@@ -302,14 +304,14 @@ static int hanvon_probe(struct usb_interface *intf, const struct usb_device_id *
 
 	input_dev->evbit[0] |= BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS) | BIT_MASK(EV_REL);
 	input_dev->keybit[BIT_WORD(BTN_DIGI)] |= BIT_MASK(BTN_TOOL_PEN) | BIT_MASK(BTN_TOUCH);
-	input_dev->keybit[BIT_WORD(BTN_LEFT)] |= BIT_MASK(BTN_LEFT) | BIT_MASK(BTN_RIGHT);
+	input_dev->keybit[BIT_WORD(BTN_LEFT)] |= BIT_MASK(BTN_LEFT) | BIT_MASK(BTN_RIGHT) | BIT_MASK(BTN_MIDDLE);
 	for(i=0;i<sizeof(lbuttons)/sizeof(lbuttons[0]);i++)
 	  __set_bit(lbuttons[i], input_dev->keybit);
 	for(i=0;i<sizeof(rbuttons)/sizeof(rbuttons[0]);i++)
 	  __set_bit(rbuttons[i], input_dev->keybit);
 
-	input_set_abs_params(input_dev, ABS_X, 0, AM_MAX_ABS_X, 4, 0);
-	input_set_abs_params(input_dev, ABS_Y, 0, AM_MAX_ABS_Y, 4, 0);
+	input_set_abs_params(input_dev, ABS_X, 0, 0xffff, 4, 0);
+	input_set_abs_params(input_dev, ABS_Y, 0, 0xffff, 4, 0);
 	input_set_abs_params(input_dev, ABS_TILT_X, 0, AM_MAX_TILT_X, 0, 0);
 	input_set_abs_params(input_dev, ABS_TILT_Y, 0, AM_MAX_TILT_Y, 0, 0);
 	input_set_abs_params(input_dev, ABS_PRESSURE, 0, AM_MAX_PRESSURE, 0, 0);
