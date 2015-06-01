@@ -104,6 +104,42 @@ static inline void handle_default(struct hanvon *hanvon)
 	}
 }
 
+static inline void handle_gp0504(struct hanvon *hanvon)
+{
+	unsigned char *data = hanvon->data;
+	struct input_dev *dev = hanvon->dev;
+
+#define AM_MAX_ABS_X   0x27de
+#define AM_MAX_ABS_Y   0x1cfe
+
+	switch(data[0]) {
+		case 0x01:   /* button press */
+			if(data[1]==0x55)   /* left side */
+				report_buttons(hanvon, lbuttons,data[2]);
+
+			if(data[3]==0xaa)   /* right side (am1107, am1209) */
+				report_buttons(hanvon, rbuttons,data[4]);
+			break;
+
+		case 0x02:   /* position change */
+            /*printk(KERN_INFO "Hanvon Test : 1x%04x 2x%04x 4x%04x 6x%04x 7x%04x 8x%04x\n\t\tClicked : %s %i/%04x\n", data[1], data[2], data[4], data[6], data[7], data[8], data[6] > 63 ? "true" : "false", data[6], get_unaligned_be16(&data[6]));*/
+
+			if((data[1] & 0xf0) != 0) {
+				input_report_abs(dev, ABS_X, get_unaligned_be16(&data[2]) * 0xffff / AM_MAX_ABS_X);
+				input_report_abs(dev, ABS_Y, get_unaligned_be16(&data[4]) * 0xffff / AM_MAX_ABS_Y);
+				input_report_abs(dev, ABS_TILT_X, data[7] & 0x3f);
+				input_report_abs(dev, ABS_TILT_Y, data[8]);
+				input_report_abs(dev, ABS_PRESSURE, get_unaligned_be16(&data[6])>>6);
+			}
+
+            /*printk(KERN_INFO "Hanvon Test : %i\n", data[6]);*/
+			input_report_key(dev, BTN_LEFT, data[6] > 68); /* pen touches the surface */
+			input_report_key(dev, BTN_RIGHT, data[1] & 0x02); /* stylus button pressed (right click) */
+			input_report_key(dev, lbuttons[0], data[1] & 0x20);	/* 'eraser' button */
+			break;
+	}
+}
+
 static inline void handle_gp0906(struct hanvon *hanvon)
 {
 	unsigned char *data = hanvon->data;
@@ -201,6 +237,9 @@ static void hanvon_irq(struct urb *urb)
 				case USB_PRODUCT_ID_APPIV0906:
 					handle_appiv0906(hanvon);
 					break;
+				case USB_PRODUCT_ID_GP0504:
+				    handle_gp0504(hanvon);
+				    break;
 				default:
 					handle_default(hanvon);
 					break;
@@ -214,9 +253,8 @@ static void hanvon_irq(struct urb *urb)
 			return;
 		default:
 			printk("%s - nonzero urb status received: %d", __func__, urb->status);
-				break;
+			break;
 	}
-
 
 	input_sync(hanvon->dev);
 
